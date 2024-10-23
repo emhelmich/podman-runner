@@ -1,0 +1,10 @@
+---
+- name: Install rootless podman
+  hosts: podman
+  become: true
+  roles:
+    #- certificates
+    - podman
+  environment:
+    http_proxy: "{{ proxy.address.http }}"
+    https_proxy: "{{ proxy.address.https }}"

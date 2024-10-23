@@ -1,0 +1,79 @@
+---
+- name: Install podman
+  become: true
+  ansible.builtin.yum:
+    name:
+      - podman
+      - slirp4netns
+      - systemd-container # for machinectl
+      - dbus              # for machinectl
+
+    state: latest
+
+- name: Create PODMAN_USER with a home directory
+  ansible.builtin.user:
+    name: "{{ PODMAN_USER }}"
+    create_home: yes
+
+# Not necessary: creating a user on RHEL 9 adds subuids and subgids
+#- name: Add subuid and subguid ranges
+#  become: true
+#  command: "usermod --add-subuids 300000-365536 --add-subgids 300000-365536 {{ PODMAN_USER }}"
+
+- name: Create directory for podman container storage
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ PODMAN_USER }}"
+    group: "{{ PODMAN_USER }}"
+  with_items: [ "{{ PODMAN_STORAGE_DIR }}", "{{ PODMAN_STORAGE_DIR }}/tmp" ]
+
+- name: Copy storage.conf file to remote host
+  template:
+    src: storage.conf
+    dest: "/home/{{ PODMAN_USER }}/.config/containers/"
+    owner: "{{ PODMAN_USER }}"
+  tags: [ "always" ]
+
+- name: Copy containers.conf file to remote host
+  copy:
+    src: "{{ role_path }}/files/containers.conf"
+    dest: "/home/{{ PODMAN_USER }}/.config/containers/"
+    owner: "{{ PODMAN_USER }}"
+    group: "{{ PODMAN_USER }}"
+  tags: [ "always"]
+
+- name: Initialize mounts.conf
+  file:
+    path: "/home/{{ PODMAN_USER }}/.config/containers/mounts.conf"
+    state: present
+    owner: "{{ PODMAN_USER }}"
+    group: "{{ PODMAN_USER }}"
+
+- name: SELinux, ensure the labeling matches the default locations labels (1/2)
+  become: true
+  command: "semanage fcontext -a -e /var/lib/containers/storage {{ PODMAN_STORAGE_DIR }}"
+
+- name: SELinux, ensure the labeling matches the default locations labels (2/2)
+  become: true
+  command: "restorecon -R -v {{ PODMAN_STORAGE_DIR }}"
+
+- name: Linger after logging off as PODMAN_USER
+  become: true
+  command: "loginctl enable-linger {{ PODMAN_USER }}"
+
+- name: Enable podman.socket service (machinectl requires the systemd-container package)
+  become: true
+  shell: "machinectl shell {{ PODMAN_USER }}@ /bin/sh -c 'systemctl --user --now enable podman.socket'"
+
+#- name: Enable podman service (machinectl requires the systemd-container package)
+#  become: true
+#  shell: "machinectl shell {{ PODMAN_USER }}@ /bin/sh -c 'systemctl --user --now enable podman'"
+
+#- name: Tmp directory
+#  lineinfile:
+#    path: /etc/tmpfiles.d/podman.conf
+#    line: "D! /appl/podman/containers/storage/tmp 0700 root root"
+#    insertafter: EOF
+

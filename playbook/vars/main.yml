@@ -1,0 +1,6 @@
+---
+proxy:
+  address:
+    http: http://proxy.dictu.intern:8080
+    https: http://proxy.dictu.intern:8080
+

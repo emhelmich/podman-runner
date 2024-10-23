@@ -1,0 +1,12 @@
+---
+- name: Install GitLab Runner.
+  become: true
+  vars_files:
+    - ./vars/main.yml
+  roles:
+    - certificates
+    - podman
+    - git-runner
+  environment:
+    http_proxy: "{{ proxy.address.http }}"
+    https_proxy: "{{ proxy.address.https }}"
